@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YOLO 自动标注工作台</title>
+  <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>YOLO 自动标注工作台</h1>
+      <p>本地运行 · 工作区文件不会上传到外部服务</p>
+    </div>
+    <div class="top-actions">
+      <label>标签格式
+        <select id="format">
+          <option value="yolo">YOLO 检测</option>
+          <option value="yolo-obb">YOLO-OBB</option>
+          <option value="yolo-pose">YOLO-Pose</option>
+        </select>
+      </label>
+      <button id="settings-button" class="secondary">快捷键设置</button>
+    </div>
+  </header>
+  <main class="layout">
+    <aside class="sidebar">
+      <section>
+        <h2>工作区文件</h2>
+        <div class="path-row">
+          <input id="browse-path" aria-label="当前浏览目录" spellcheck="false">
+          <button id="browse-button" class="secondary">打开</button>
+        </div>
+        <div id="folder-list" class="folder-list"></div>
+      </section>
+      <section>
+        <h2>图片与标签目录</h2>
+        <label>图片目录（相对工作区）
+          <input id="image-dir" value="" placeholder="选择图片目录">
+        </label>
+        <label>标签目录（相对工作区）
+          <input id="label-dir" value=".autolabeler/labels" placeholder=".autolabeler/labels">
+        </label>
+        <button id="use-image-dir" class="secondary full">将当前目录设为图片目录</button>
+        <button id="use-label-dir" class="secondary full">将当前目录设为标签目录</button>
+        <label class="setting-toggle">
+          <input id="auto-copy-labels" type="checkbox">
+          <span>下一张无标签时，复制上一张标签</span>
+        </label>
+        <label class="setting-toggle">
+          <input id="auto-save" type="checkbox">
+          <span>自动保存（切换图片时保存当前标注）</span>
+        </label>
+        <label>切换图片筛选
+          <select id="nav-filter">
+            <option value="none">不筛选</option>
+            <option value="unannotated">仅未标注</option>
+            <option value="unannotated_complete">未标注 + 完成</option>
+            <option value="buffer">仅缓冲</option>
+            <option value="complete">仅完成</option>
+          </select>
+        </label>
+        <p class="hint">标签按图片相对路径保存为同名 .txt 文件；每次切换图片都会重新读取本地标签。</p>
+      </section>
+      <section>
+        <h2>图片列表 <span id="image-count" class="muted"></span></h2>
+        <div id="image-list" class="image-list"></div>
+      </section>
+    </aside>
+    <section class="workspace">
+      <div class="toolbar">
+        <button id="previous-button" class="secondary">上一张</button>
+        <span id="current-image">尚未选择图片</span>
+        <button id="next-button" class="secondary">下一张</button>
+        <button id="add-button">添加框</button>
+        <label class="class-control">类别 ID<input id="class-id" type="number" min="0" step="1" value="0"></label>
+        <label class="class-control">关键点数<input id="keypoint-count" type="number" min="1" max="100" step="1" value="17"></label>
+        <label class="class-control">可见性<select id="keypoint-visibility">
+          <option value="2">可见</option><option value="1">遮挡</option><option value="0">不可见</option>
+        </select></label>
+        <button id="add-keypoint-button" class="secondary">添加关键点</button>
+        <button id="save-button" class="secondary">保存</button>
+        <button id="review-button" class="secondary" disabled>审核通过</button>
+        <button id="delete-button" class="danger secondary">删除选中框</button>
+      </div>
+      <div class="canvas-scroll">
+        <div id="canvas-wrap" class="canvas-wrap">
+          <img id="image" alt="当前标注图片">
+          <canvas id="overlay"></canvas>
+        </div>
+        <div id="empty-state" class="empty-state">从左侧打开图片目录并选择一张图片</div>
+      </div>
+      <div class="statusbar">
+        <span id="label-path">标签文件：—</span>
+        <span id="status" role="status">就绪</span>
+      </div>
+      <section class="tools-panel">
+        <details>
+          <summary>训练 / 自动标注</summary>
+          <div class="tool-grid">
+            <div class="tool-card">
+              <h2>训练参数</h2>
+              <label>数据集 YAML 路径<input id="train-data" placeholder="例如 datasets/data.yaml"></label>
+              <label class="setting-toggle">
+                <input id="generate-data" type="checkbox">
+                <span>没有数据集 YAML（自动生成临时 YAML）</span>
+              </label>
+              <div class="fields">
+                <label>Epochs<input id="epochs" type="number" value="100" min="1" max="10000"></label>
+                <label>图像尺寸<input id="imgsz" type="number" value="640" min="32" max="4096"></label>
+                <label>Batch<input id="batch" type="number" value="16" min="1" max="2048"></label>
+              </div>
+              <label>预设基础模型（baseModels）
+                <select id="train-base-model"><option value="">默认 yolo11n.pt（自动下载）</option></select>
+              </label>
+              <label>基础模型 / 权重<input id="train-model" placeholder="例如 yolo11n.pt 或 workspace 内权重路径"></label>
+              <label class="file-picker">从本机选择模型文件<input id="train-model-upload" type="file" accept=".pt,.onnx,.engine"></label>
+              <div class="fields">
+                <label>设备<input id="train-device" value="cpu" placeholder="cpu 或 0"></label>
+                <label>Workers<input id="train-workers" type="number" value="8" min="0" max="256"></label>
+                <label>Patience<input id="train-patience" type="number" value="100" min="0" max="10000"></label>
+              </div>
+              <div class="fields">
+                <label>优化器<select id="optimizer">
+                  <option>auto</option><option>SGD</option><option>Adam</option><option>AdamW</option>
+                  <option>NAdam</option><option>RAdam</option><option>RMSProp</option>
+                </select></label>
+                <label>初始学习率<input id="lr0" type="number" value="0.01" min="0" max="1" step="0.001"></label>
+                <label>随机种子<input id="seed" type="number" value="0" min="0"></label>
+              </div>
+              <div class="fields">
+                <label>旋转角度<input id="degrees" type="number" value="0" min="0" max="180" step="1"></label>
+                <label>水平翻转<input id="fliplr" type="number" value="0.5" min="0" max="1" step="0.05"></label>
+                <label>关闭 Mosaic<input id="close-mosaic" type="number" value="10" min="0" max="10000"></label>
+              </div>
+              <div class="fields">
+                <label>HSV Hue<input id="hsv-h" type="number" value="0.015" min="0" max="1" step="0.005"></label>
+                <label>HSV Saturation<input id="hsv-s" type="number" value="0.7" min="0" max="1" step="0.05"></label>
+                <label>HSV Value<input id="hsv-v" type="number" value="0.4" min="0" max="1" step="0.05"></label>
+              </div>
+              <div class="checks">
+                <label><input id="pretrained" type="checkbox" checked> 使用预训练权重</label>
+                <label><input id="cache" type="checkbox"> 缓存数据集</label>
+                <label><input id="amp" type="checkbox" checked> AMP 混合精度</label>
+                <label><input id="aug-crop" type="checkbox" checked> 随机裁剪增强</label>
+                <label><input id="aug-occlusion" type="checkbox" checked> 遮挡增强</label>
+              </div>
+              <button id="auto-train-params-button" class="secondary">自动配置训练参数</button>
+              <button id="train-button">开始训练</button>
+              <p class="hint">训练使用当前图片目录下所有已有标签的图片，自动排除没有标签的图片；勾选“自动生成”时无需数据集 YAML，类别名和 Pose 关键点数会从标签中自动推断。结果保存在 workspace/.autolabeler/run。</p>
+            </div>
+            <div class="tool-card">
+              <h2>模型与自动标注</h2>
+              <label>可用模型<select id="model-list"><option value="">暂无模型</option></select></label>
+              <label class="file-picker">从本机选择模型文件<input id="model-upload" type="file" accept=".pt,.onnx,.engine"></label>
+              <div id="keypoint-toggles-wrap" class="keypoint-toggles-wrap" style="display:none">
+                <div class="keypoint-toggles-head">
+                  <span class="hint">关键点开关（关闭的关键点在标签中补 0）</span>
+                  <button id="keypoints-all" class="secondary" type="button">全选</button>
+                  <button id="keypoints-none" class="secondary" type="button">全不选</button>
+                </div>
+                <div id="keypoint-toggles" class="keypoint-toggles"></div>
+              </div>
+              <label>要处理的图片数量<input id="auto-count" type="number" value="10" min="1"></label>
+              <button id="auto-button">开始自动标注</button>
+              <p class="hint">自动跳过已完成和已有缓冲结果的图片；推理结果先进入 .autolabeler/buffer，人工审核通过后才移入标签目录。浏览器选择的模型会复制到工作区模型目录。</p>
+              <div class="job-controls">
+                <span id="job-status" class="hint">没有运行中的任务</span>
+                <button id="cancel-job-button" class="secondary" disabled>停止任务</button>
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+    </section>
+  </main>
+  <dialog id="settings-dialog">
+    <form method="dialog">
+      <h2>快捷键设置</h2>
+      <p class="hint">点击输入框后按下快捷键；设置保存在程序目录的 key.yaml。</p>
+      <div id="shortcut-fields"></div>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary">取消</button>
+        <button id="save-keys-button" type="button">保存快捷键</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="/web/app.js" defer></script>
+</body>
+</html>

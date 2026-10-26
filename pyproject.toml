@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autolabeler"
+version = "0.1.0"
+description = "A local web framework for YOLO image annotation"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+yolo = ["ultralytics>=8.3", "PyYAML>=6.0"]
+
+[project.scripts]
+autolabeler = "autolabeler.cli:main"
+
+[tool.setuptools.package-data]
+autolabeler = ["web/*"]
